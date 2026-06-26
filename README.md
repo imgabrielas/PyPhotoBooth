@@ -11,7 +11,9 @@ python3 -m pip install -r requirements.txt
 ## Controls
 
 - Click `SAVE STRIP` after the third photo to save the final photobooth image.
+- Click `ADD DATE` and the date will be added at the bottom of the picture.
+- Click `B/W` and the picture will be turned to black and white
 - Press `S` after the third photo as a keyboard shortcut to save.
 - Press `Q` any time to quit.
 
-Saved photobooth images are written to the `outputs` folder.
+Saved photobooth images are written to the `photobooth_pictures` folder - you may change directory, it is located in line 28.
