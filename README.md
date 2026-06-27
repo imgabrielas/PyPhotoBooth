@@ -13,15 +13,14 @@ python3 -m pip install -r requirements.txt
 ## Shooting phase
 
 - A gold frame rectangle shows the crop area for each photo.
-- A face-detection hint box (green) appears when a face is detected.
-- The right strip panel fills in with each captured photo; empty slots show a numbered gray placeholder.
+- The right strip panel fills in with each captured photo.
 - Press **Q** at any time to quit.
 
 ## Review phase (after all 3 photos are taken)
 
 The camera turns off and the full window switches to a review layout:
 
-- **Left side** — live preview of the photo strip including any applied effects and footer text.
+- **Left side** — preview of the photo strip including any applied effects and footer text.
 - **Right side** — controls (all the same width and height for visual consistency):
 
 | Control | Action |
@@ -48,7 +47,7 @@ Keyboard shortcuts (when the text field is not focused): **D** = toggle date, **
 Saved strips are written to:
 
 ```
-/Users/gabrielaslomiany/PyDeveloper/photobooth_pictures/
+/Users/.../PyDeveloper/photobooth_pictures/
 ```
 
 The path can be changed on the `self.output_dir` line in `__init__`.
