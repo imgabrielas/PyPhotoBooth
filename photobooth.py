@@ -5,6 +5,7 @@ from datetime import datetime
 from pathlib import Path
 
 import cv2
+from matplotlib.pyplot import draw
 import mediapipe as mp
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
@@ -13,7 +14,7 @@ from PIL import Image, ImageDraw, ImageFont
 SF_FONT = "/System/Library/Fonts/SFNS.ttf"
 
 # RGB palette (PIL format)
-BG_RGB     = (252, 252, 240)
+BG_RGB     = (252, 252, 250)
 ACCENT_RGB = (255, 188, 112)   # warm gold — frame rectangle colour
 WHITE_RGB  = (255, 255, 255)
 BLACK_RGB  = (20,  20,  20)
@@ -41,7 +42,8 @@ class PhotoBoothApp:
         self.gap    = 24
 
         # 70 / 30 horizontal split
-        total_usable   = 2884
+        # total_usable   = 2884
+        total_usable   = 3100 #fits screen
         self.preview_w = int(0.70 * total_usable)
         self.panel_w   = total_usable - self.preview_w - self.gap
         self.preview_h = 1600
@@ -114,6 +116,25 @@ class PhotoBoothApp:
         draw.text((bx + bw // 2, by + bh // 2), text,
                   font=self._font(size), fill=color, anchor="mm")
 
+    def _wrap_text(self, text: str, font: ImageFont.FreeTypeFont, max_w: int) -> list[str]:
+        """Wrap text into lines that fit within max_w pixels, character by character."""
+        if not text:
+            return []
+        dummy = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+        lines: list[str] = []
+        current = ""
+        for char in text:
+            candidate = current + char
+            w = dummy.textbbox((0, 0), candidate, font=font)[2]
+            if w > max_w and current:
+                lines.append(current)
+                current = char
+            else:
+                current = candidate
+        if current:
+            lines.append(current)
+        return lines
+
     # ── mouse handler ─────────────────────────────────────────────────────
 
     def on_mouse(self, event: int, x: int, y: int, _flags: int, _param: object) -> None:
@@ -147,11 +168,11 @@ class PhotoBoothApp:
     def run(self) -> None:
         try:
             for photo_number in range(1, 4):
-                self.countdown(seconds=10, photo_number=photo_number)
+                self.countdown(seconds=2, photo_number=photo_number)
                 photo = self.take_photo()
                 self.photos.append(photo)
                 if photo_number < 3:
-                    self.pause_between_photos(seconds=5)
+                    self.pause_between_photos(seconds=1)
             self.wait_for_save()
         finally:
             if self.face_detector is not None:
@@ -171,7 +192,7 @@ class PhotoBoothApp:
             canvas = self.build_canvas(frame)
             draw   = ImageDraw.Draw(canvas)
             draw.text(
-                (self.frame_x, self.margin + 58),
+                (self.frame_x, self.margin + 100),
                 f"Photo {photo_number} in {remaining}s",
                 font=self._font(54), fill=ACCENT_RGB, anchor="ls",
             )
@@ -196,9 +217,14 @@ class PhotoBoothApp:
             canvas = self.build_canvas(frame)
             draw   = ImageDraw.Draw(canvas)
             draw.text(
-                (self.margin + 28, self.margin + 58),
-                f"Change pose: {remaining}",
-                font=self._font(50), fill=ACCENT_RGB, anchor="ls",
+                (self.frame_x, self.margin + 100),
+                f"Change pose: {remaining}s",
+                font=self._font(54), fill=ACCENT_RGB, anchor="ls",
+            )
+            draw.text(
+                (self.margin + 30, self.canvas_h - 36),
+                "Press Q to quit",
+                font=self._font(30), fill=BLACK_RGB, anchor="ls",
             )
             self._show(canvas)
             if cv2.waitKey(1) & 0xFF == ord("q"):
@@ -281,10 +307,14 @@ class PhotoBoothApp:
         self.draw_review_buttons(draw, right_x, self.canvas_w - right_x)
 
         if self.saved_path:
+            qx, qy, qw, qh = self.quit_button_rect
             draw.text(
-                (right_x + 20, self.canvas_h - 40),
+                (qx + qw // 2, qy + qh + 50),
                 f"Saved: {self.saved_path.name}",
                 font=self._font(26), fill=GREEN_RGB,
+                anchor="mt",
+                stroke_width=1,
+                stroke_fill=GREEN_RGB,
             )
 
         return canvas
@@ -319,36 +349,56 @@ class PhotoBoothApp:
                 )
 
     def draw_review_buttons(self, draw: ImageDraw.Draw, right_x: int, right_w: int) -> None:
-        bw, bh, gap, tbh = 280, 88, 38, 64   # button w/h, gap, text-box height
+        bw, gap = 480, 38
+        tb_pad  = 14
+        tb_font = self._font(34)
+        tb_inner_w = bw - 2 * tb_pad
+
+        ascent, descent = tb_font.getmetrics()
+        line_h = ascent + descent
+
+        # Uniform height = two text lines + padding (used for both buttons and text box minimum)
+        uniform_h = 2 * line_h + 2 * tb_pad + 4
+        bh = uniform_h
+
+        # Text box grows beyond uniform_h only when content exceeds two lines
+        wrapped = self._wrap_text(self.custom_text, tb_font, tb_inner_w)
+        n_lines = max(1, len(wrapped))
+        tbh     = max(uniform_h, n_lines * line_h + 2 * tb_pad + (n_lines - 1) * 4)
+
 
         total_h = 4 * bh + tbh + 5 * gap
-        start_y = (self.canvas_h - total_h) // 2
-        bx      = right_x + (right_w - bw) // 2
+        start_y = max(self.margin, (self.canvas_h - total_h) // 2)
+        bx      = right_x + (right_w - bw) // 2 - 400
 
         # ADD DATE
         y0 = start_y
-        fill0 = GREEN_RGB if self.add_date_to_strip else WHITE_RGB
+        fill0 = ACCENT_RGB if self.add_date_to_strip else WHITE_RGB
         draw.rectangle([bx, y0, bx + bw, y0 + bh], fill=fill0, outline=BLACK_RGB, width=3)
         self._draw_centered(draw, "ADD DATE", bx, y0, bw, bh, 34, BLACK_RGB)
         self.date_button_rect = (bx, y0, bw, bh)
 
-        # Text input box
-        y1 = y0 + bh + gap
+        # Text input box — height grows with content
+        y1     = y0 + bh + gap
         border = ACCENT_RGB if self.text_box_focused else BLACK_RGB
-        if self.text_box_focused:
-            display, tcolor = self.custom_text + "|", BLACK_RGB
-        elif self.custom_text:
-            display, tcolor = self.custom_text, BLACK_RGB
-        else:
-            display, tcolor = "Add message...", GRAY_RGB
         draw.rectangle([bx, y1, bx + bw, y1 + tbh], fill=WHITE_RGB, outline=border, width=3)
-        draw.text((bx + 14, y1 + tbh // 2), display,
-                  font=self._font(26), fill=tcolor, anchor="lm")
+
+        if wrapped:
+            for i, line in enumerate(wrapped):
+                # Append blinking cursor to the last line when focused
+                text_line = (line + "|") if (self.text_box_focused and i == len(wrapped) - 1) else line
+                draw.text((bx + tb_pad, y1 + tb_pad + i * (line_h + 4)),
+                          text_line, font=tb_font, fill=BLACK_RGB)
+        elif self.text_box_focused:
+            draw.text((bx + tb_pad, y1 + tb_pad), "|", font=tb_font, fill=BLACK_RGB)
+        else:
+            draw.text((bx + bw // 2, y1 + tbh // 2), "ADD TEXT",
+                      font=tb_font, fill=GRAY_RGB, anchor="mm")
         self.text_box_rect = (bx, y1, bw, tbh)
 
         # B/W
         y2 = y1 + tbh + gap
-        fill2 = GREEN_RGB if self.black_white_strip else WHITE_RGB
+        fill2 = ACCENT_RGB if self.black_white_strip else WHITE_RGB
         draw.rectangle([bx, y2, bx + bw, y2 + bh], fill=fill2, outline=BLACK_RGB, width=3)
         self._draw_centered(draw, "B/W", bx, y2, bw, bh, 34, BLACK_RGB)
         self.black_white_button_rect = (bx, y2, bw, bh)
@@ -392,7 +442,27 @@ class PhotoBoothApp:
     def build_strip_pil(self) -> Image.Image:
         strip_w      = self.strip_photo_w + self.strip_padding * 2
         photo_sect_h = self.strip_padding * 2 + self.strip_photo_h * 3 + self.strip_gap * 2
-        strip_h      = photo_sect_h + self.strip_footer_h
+
+        text_pad     = 20
+        font         = self._font(30)
+        text_inner_w = strip_w - 8 * text_pad
+        ascent, descent = font.getmetrics()
+        line_h       = ascent + descent
+        line_spacing = 6
+
+        # Collect all footer lines (date block then custom-text block)
+        footer_lines: list[str] = []
+        if self.add_date_to_strip:
+            footer_lines += self._wrap_text(datetime.now().strftime("%d/%m/%Y"), font, text_inner_w)
+        if self.custom_text:
+            footer_lines += self._wrap_text(self.custom_text, font, text_inner_w)
+
+        n        = len(footer_lines)
+        footer_h = max(
+            self.strip_footer_h,
+            text_pad * 2 + n * line_h + max(0, n - 1) * line_spacing if n else 0,
+        )
+        strip_h = photo_sect_h + footer_h
 
         strip = Image.new("RGB", (strip_w, strip_h), WHITE_RGB)
 
@@ -402,21 +472,12 @@ class PhotoBoothApp:
             strip.paste(Image.fromarray(cv2.cvtColor(photo, cv2.COLOR_BGR2RGB)), (x, y))
 
         draw   = ImageDraw.Draw(strip)
-        text_y = photo_sect_h + 18
-
-        if self.add_date_to_strip:
-            date_font = self._font(30)
-            date_str  = datetime.now().strftime("%d/%m/%Y")
-            bbox = draw.textbbox((0, 0), date_str, font=date_font)
+        text_y = photo_sect_h + text_pad
+        for line in footer_lines:
+            bbox = draw.textbbox((0, 0), line, font=font)
             tw   = bbox[2] - bbox[0]
-            draw.text(((strip_w - tw) // 2, text_y), date_str, font=date_font, fill=BLACK_RGB)
-            text_y += bbox[3] - bbox[1] + 10
-
-        if self.custom_text:
-            msg_font = self._font(40)
-            bbox = draw.textbbox((0, 0), self.custom_text, font=msg_font)
-            tw   = bbox[2] - bbox[0]
-            draw.text(((strip_w - tw) // 2, text_y), self.custom_text, font=msg_font, fill=BLACK_RGB)
+            draw.text(((strip_w - tw) // 2, text_y), line, font=font, fill=BLACK_RGB)
+            text_y += line_h + line_spacing
 
         if self.black_white_strip:
             strip = strip.convert("L").convert("RGB")
