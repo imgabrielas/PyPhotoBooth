@@ -4,8 +4,6 @@
 
 Opens your camera, counts down, takes 3 photos, and builds a vertical photo strip with an optional footer. The left 70 % of the window shows the live camera feed with a framing rectangle; the right 30 % shows the strip panel.
 
-> **Note:** The countdown and pause between photos are currently set to **2 s / 1 s** for testing. Change the values in `run()` (lines `self.countdown(seconds=2, ...)` and `self.pause_between_photos(seconds=1, ...)`) before using in production — 10 s / 5 s is the intended experience.
-
 ## Install
 
 ```bash

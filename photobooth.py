@@ -1,3 +1,8 @@
+# ------------------------------------------------------------------------------------------------------------------------
+# DEAR USER
+# **Before you run this:** the output folder is currently hardcoded to the author's machine — change it in `photobooth.py` line 51 (`self.output_dir = Path(...)`) to a folder of your liking. Also, the countdown/pause timers are set short for testing — change them in `photobooth.py` lines 233 and 237 (`self.countdown(seconds=2, ...)` and `self.pause_between_photos(seconds=1)`) before real use.
+# ------------------------------------------------------------------------------------------------------------------------
+
 from __future__ import annotations
 
 import time
