@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 import time
 from datetime import datetime
 from pathlib import Path
@@ -21,12 +20,18 @@ WHITE_RGB  = (255, 255, 255)
 BLACK_RGB  = (20,  20,  20)
 GRAY_RGB   = (65,  65,  65)
 GREEN_RGB  = (120, 210,  80)
+PICKUP_BG_RGB = (243, 243, 243)   # rgba(243, 243, 243) — matches picture_pickup.jpg backdrop
 
 # BGR for cv2-only operations (face-detection rect)
 GREEN_BGR  = (80, 210, 120)
 
-# Bounding box (px) of the hand-drawn "START" button inside PyPhotobooth_start.jpg
+# Bounding box (px) of the hand-drawn "START" button inside start.jpg
 START_IMAGE_BUTTON_BOX = (1143, 1313, 1626, 1519)
+
+# Y-coordinates (px) inside picture_pickup.jpg: bottom of the "Picture pick-up"
+# label, and the tray's back rim — the generated strip is sized/placed between them.
+PICKUP_LABEL_BOTTOM_Y = 431
+PICKUP_TRAY_RIM_Y     = 2519
 
 
 class PhotoBoothApp:
@@ -103,6 +108,7 @@ class PhotoBoothApp:
             )
 
         self._load_start_screen_assets()
+        self._load_pickup_screen_assets()
 
         cv2.namedWindow(self.window_name)
         cv2.setMouseCallback(self.window_name, self.on_mouse)
@@ -118,7 +124,7 @@ class PhotoBoothApp:
         return Image.new("RGB", (self.canvas_w, self.canvas_h), BG_RGB)
 
     def _load_start_screen_assets(self) -> None:
-        start_image = Image.open(self.assets_dir / "PyPhotobooth_start.jpg").convert("RGB")
+        start_image = Image.open(self.assets_dir / "start.jpg").convert("RGB")
         img_w, img_h = start_image.size
 
         # Reserve space below the drawing for the hint / quit-key captions.
@@ -130,6 +136,22 @@ class PhotoBoothApp:
         self.start_image_x      = (self.canvas_w - scaled_w) // 2
         self.start_image_y      = self.margin
         self._start_image_scale = scale
+
+    def _load_pickup_screen_assets(self) -> None:
+        pickup_image = Image.open(self.assets_dir / "picture_pickup.jpg").convert("RGB")
+        img_w, img_h = pickup_image.size
+
+        left_w  = int(self.canvas_w * 0.70)
+        avail_w = left_w - 2 * self.margin
+        avail_h = self.canvas_h - 2 * self.margin
+
+        scale   = min(avail_w / img_w, avail_h / img_h)
+        scaled_w, scaled_h = int(img_w * scale), int(img_h * scale)
+
+        self.pickup_image_scaled = pickup_image.resize((scaled_w, scaled_h), Image.LANCZOS)
+        self.pickup_image_x      = self.margin + (avail_w - scaled_w) // 2
+        self.pickup_image_y      = self.margin
+        self._pickup_image_scale = scale
 
     def _show(self, canvas: Image.Image) -> None:
         cv2.imshow(self.window_name, cv2.cvtColor(np.array(canvas), cv2.COLOR_RGB2BGR))
@@ -217,10 +239,8 @@ class PhotoBoothApp:
             cv2.destroyAllWindows()
 
     def show_start_screen(self) -> None:
-        start_time = time.monotonic()
+        canvas = self.build_start_canvas()
         while True:
-            t = time.monotonic() - start_time
-            canvas = self.build_start_canvas(t)
             self._show(canvas)
             key = cv2.waitKey(16) & 0xFF
             if key == ord("q") or key == 27:   # Q or Esc
@@ -230,7 +250,7 @@ class PhotoBoothApp:
                 self.on_start_screen = False
                 return
 
-    def build_start_canvas(self, t: float) -> Image.Image:
+    def build_start_canvas(self) -> Image.Image:
         canvas = Image.new("RGB", (self.canvas_w, self.canvas_h), WHITE_RGB)
 
         img_x, img_y = self.start_image_x, self.start_image_y
@@ -243,8 +263,6 @@ class PhotoBoothApp:
         x1, y1 = img_x + bx1 * scale, img_y + by1 * scale
         self.start_button_rect = (int(x0), int(y0), int(x1 - x0), int(y1 - y0))
 
-        self._draw_pulse_glow(draw, x0, y0, x1, y1, t)
-
         draw.text(
             (self.canvas_w // 2, self.canvas_h - 70),
             "Click START or press SPACE to begin",
@@ -256,26 +274,6 @@ class PhotoBoothApp:
             font=self._font(30), fill=BLACK_RGB, anchor="ls",
         )
         return canvas
-
-    def _draw_pulse_glow(
-        self, draw: ImageDraw.Draw,
-        x0: float, y0: float, x1: float, y1: float, t: float,
-    ) -> None:
-        pulse   = (math.sin(t * 2.4) + 1) / 2      # 0..1 breathing factor
-        max_pad = 16
-        pad     = 4 + pulse * max_pad
-        rings   = 6
-        for i in range(rings, 0, -1):
-            frac     = i / rings
-            ring_pad = pad * frac
-            alpha    = (1 - frac) ** 1.5
-            color = tuple(
-                int(WHITE_RGB[c] + (ACCENT_RGB[c] - WHITE_RGB[c]) * alpha) for c in range(3)
-            )
-            draw.rectangle(
-                [x0 - ring_pad, y0 - ring_pad, x1 + ring_pad, y1 + ring_pad],
-                outline=color, width=3,
-            )
 
     def countdown(self, seconds: int, photo_number: int) -> None:
         start = time.monotonic()
@@ -391,14 +389,31 @@ class PhotoBoothApp:
         return canvas
 
     def build_review_canvas(self) -> Image.Image:
-        canvas = self._make_canvas()
-        strip  = self.build_strip_pil()
+        canvas = Image.new("RGB", (self.canvas_w, self.canvas_h), PICKUP_BG_RGB)
 
-        left_w = int(self.canvas_w * 0.70)
-        sx = max(0, (left_w - strip.width)  // 2)
-        sy = max(0, (self.canvas_h - strip.height) // 2)
-        canvas.paste(strip, (sx, sy))
+        img_x, img_y = self.pickup_image_x, self.pickup_image_y
+        canvas.paste(self.pickup_image_scaled, (img_x, img_y))
 
+        strip = self.build_strip_pil()
+        strip_aspect = strip.width / strip.height
+
+        scale       = self._pickup_image_scale
+        tray_rim_y  = img_y + round(PICKUP_TRAY_RIM_Y * scale)
+        label_y     = img_y + round(PICKUP_LABEL_BOTTOM_Y * scale)
+        available_h = (tray_rim_y - label_y) - 20   # small gap below the label
+
+        target_w = int(self.pickup_image_scaled.width * 0.46)
+        target_h = int(target_w / strip_aspect)
+        if target_h > available_h:
+            target_h = available_h
+            target_w = int(target_h * strip_aspect)
+
+        strip_resized = strip.resize((target_w, target_h), Image.LANCZOS)
+        strip_x = img_x + (self.pickup_image_scaled.width - target_w) // 2
+        strip_y = tray_rim_y - target_h + 15
+        canvas.paste(strip_resized, (strip_x, strip_y))
+
+        left_w  = int(self.canvas_w * 0.70)
         draw    = ImageDraw.Draw(canvas)
         right_x = left_w
         self.draw_review_buttons(draw, right_x, self.canvas_w - right_x)
