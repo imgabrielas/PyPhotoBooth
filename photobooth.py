@@ -47,7 +47,7 @@ class PhotoBoothApp:
         self.output_dir  = Path("/Users/gabrielaslomiany/PyDeveloper/photobooth_pictures")
         self.output_dir.mkdir(exist_ok=True)
 
-        self.assets_dir = Path(__file__).resolve().parent
+        self.assets_dir = Path(__file__).resolve().parent / "images"
 
         self.margin = 28
         self.gap    = 24
