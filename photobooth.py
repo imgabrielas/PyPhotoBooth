@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import time
 from datetime import datetime
 from pathlib import Path
@@ -24,6 +25,9 @@ GREEN_RGB  = (120, 210,  80)
 # BGR for cv2-only operations (face-detection rect)
 GREEN_BGR  = (80, 210, 120)
 
+# Bounding box (px) of the hand-drawn "START" button inside PyPhotobooth_start.jpg
+START_IMAGE_BUTTON_BOX = (1143, 1313, 1626, 1519)
+
 
 class PhotoBoothApp:
     def __init__(self) -> None:
@@ -37,6 +41,8 @@ class PhotoBoothApp:
         self.window_name = "Python Photobooth"
         self.output_dir  = Path("/Users/gabrielaslomiany/PyDeveloper/photobooth_pictures")
         self.output_dir.mkdir(exist_ok=True)
+
+        self.assets_dir = Path(__file__).resolve().parent
 
         self.margin = 28
         self.gap    = 24
@@ -71,6 +77,7 @@ class PhotoBoothApp:
         self.black_white_button_rect = (0, 0, 0, 0)
         self.quit_button_rect        = (0, 0, 0, 0)
         self.text_box_rect           = (0, 0, 0, 0)
+        self.start_button_rect       = (0, 0, 0, 0)
 
         self.saved_path: Path | None = None
         self.save_requested          = False
@@ -83,6 +90,9 @@ class PhotoBoothApp:
         self.custom_text             = ""
         self.photos: list[np.ndarray] = []
 
+        self.on_start_screen  = True
+        self.start_requested  = False
+
         self._font_cache: dict[int, ImageFont.FreeTypeFont] = {}
         self.face_detector = None
 
@@ -91,6 +101,8 @@ class PhotoBoothApp:
             self.face_detector = mp_face_detection.FaceDetection(
                 model_selection=0, min_detection_confidence=0.5,
             )
+
+        self._load_start_screen_assets()
 
         cv2.namedWindow(self.window_name)
         cv2.setMouseCallback(self.window_name, self.on_mouse)
@@ -104,6 +116,20 @@ class PhotoBoothApp:
 
     def _make_canvas(self) -> Image.Image:
         return Image.new("RGB", (self.canvas_w, self.canvas_h), BG_RGB)
+
+    def _load_start_screen_assets(self) -> None:
+        start_image = Image.open(self.assets_dir / "PyPhotobooth_start.jpg").convert("RGB")
+        img_w, img_h = start_image.size
+
+        # Reserve space below the drawing for the hint / quit-key captions.
+        avail_h = self.canvas_h - self.margin - 90
+        scale   = avail_h / img_h
+        scaled_w, scaled_h = int(img_w * scale), int(img_h * scale)
+
+        self.start_image_scaled = start_image.resize((scaled_w, scaled_h), Image.LANCZOS)
+        self.start_image_x      = (self.canvas_w - scaled_w) // 2
+        self.start_image_y      = self.margin
+        self._start_image_scale = scale
 
     def _show(self, canvas: Image.Image) -> None:
         cv2.imshow(self.window_name, cv2.cvtColor(np.array(canvas), cv2.COLOR_RGB2BGR))
@@ -138,7 +164,16 @@ class PhotoBoothApp:
     # ── mouse handler ─────────────────────────────────────────────────────
 
     def on_mouse(self, event: int, x: int, y: int, _flags: int, _param: object) -> None:
-        if event != cv2.EVENT_LBUTTONDOWN or len(self.photos) != 3:
+        if event != cv2.EVENT_LBUTTONDOWN:
+            return
+
+        if self.on_start_screen:
+            sx, sy, sw, sh = self.start_button_rect
+            if sx <= x <= sx + sw and sy <= y <= sy + sh:
+                self.start_requested = True
+            return
+
+        if len(self.photos) != 3:
             return
 
         tx, ty, tw, th = self.text_box_rect
@@ -167,6 +202,7 @@ class PhotoBoothApp:
 
     def run(self) -> None:
         try:
+            self.show_start_screen()
             for photo_number in range(1, 4):
                 self.countdown(seconds=2, photo_number=photo_number)
                 photo = self.take_photo()
@@ -179,6 +215,67 @@ class PhotoBoothApp:
                 self.face_detector.close()
             self.capture.release()
             cv2.destroyAllWindows()
+
+    def show_start_screen(self) -> None:
+        start_time = time.monotonic()
+        while True:
+            t = time.monotonic() - start_time
+            canvas = self.build_start_canvas(t)
+            self._show(canvas)
+            key = cv2.waitKey(16) & 0xFF
+            if key == ord("q") or key == 27:   # Q or Esc
+                raise SystemExit
+            if key in (13, 32) or self.start_requested:   # Enter / Space / click
+                self.start_requested = False
+                self.on_start_screen = False
+                return
+
+    def build_start_canvas(self, t: float) -> Image.Image:
+        canvas = Image.new("RGB", (self.canvas_w, self.canvas_h), WHITE_RGB)
+
+        img_x, img_y = self.start_image_x, self.start_image_y
+        canvas.paste(self.start_image_scaled, (img_x, img_y))
+
+        draw  = ImageDraw.Draw(canvas)
+        scale = self._start_image_scale
+        bx0, by0, bx1, by1 = START_IMAGE_BUTTON_BOX
+        x0, y0 = img_x + bx0 * scale, img_y + by0 * scale
+        x1, y1 = img_x + bx1 * scale, img_y + by1 * scale
+        self.start_button_rect = (int(x0), int(y0), int(x1 - x0), int(y1 - y0))
+
+        self._draw_pulse_glow(draw, x0, y0, x1, y1, t)
+
+        draw.text(
+            (self.canvas_w // 2, self.canvas_h - 70),
+            "Click START or press SPACE to begin",
+            font=self._font(30), fill=GRAY_RGB, anchor="mm",
+        )
+        draw.text(
+            (self.margin + 30, self.canvas_h - 36),
+            "Press Q or ESC to quit",
+            font=self._font(30), fill=BLACK_RGB, anchor="ls",
+        )
+        return canvas
+
+    def _draw_pulse_glow(
+        self, draw: ImageDraw.Draw,
+        x0: float, y0: float, x1: float, y1: float, t: float,
+    ) -> None:
+        pulse   = (math.sin(t * 2.4) + 1) / 2      # 0..1 breathing factor
+        max_pad = 16
+        pad     = 4 + pulse * max_pad
+        rings   = 6
+        for i in range(rings, 0, -1):
+            frac     = i / rings
+            ring_pad = pad * frac
+            alpha    = (1 - frac) ** 1.5
+            color = tuple(
+                int(WHITE_RGB[c] + (ACCENT_RGB[c] - WHITE_RGB[c]) * alpha) for c in range(3)
+            )
+            draw.rectangle(
+                [x0 - ring_pad, y0 - ring_pad, x1 + ring_pad, y1 + ring_pad],
+                outline=color, width=3,
+            )
 
     def countdown(self, seconds: int, photo_number: int) -> None:
         start = time.monotonic()
