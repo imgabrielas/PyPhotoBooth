@@ -59,3 +59,8 @@ The path can be changed on the `self.output_dir` line in `__init__`.
 - All text uses **San Francisco** (`/System/Library/Fonts/SFNS.ttf`).
 - Background: `RGB(252, 252, 250)` — near-white cream.
 - Accent (frame, active buttons, text-box focus border): warm gold `RGB(255, 188, 112)`.
+
+## Future development
+
+- Turning it into a web app.
+- If you have other ideas, let me know and we can do it.
