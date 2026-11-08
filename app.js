@@ -2,7 +2,6 @@ const $ = (id) => document.getElementById(id);
 const screens = ["start", "capture", "pickup"];
 const show = (id) => screens.forEach((s) => $(s).classList.toggle("active", s === id));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const isMobile = matchMedia("(pointer: coarse)").matches;
 
 let stream = null;
 let photos = [];
@@ -106,20 +105,27 @@ function drawStrip() {
   }, "image/png");
 }
 
-/* ---------- SAVE ---------- */
-async function save() {
-  if (isMobile && stripFile && navigator.canShare?.({ files: [stripFile] })) {
-    try {
-      await navigator.share({ files: [stripFile], title: "PyPhotobooth" });
-      return;
-    } catch (err) {
-      if (err.name === "AbortError") return;   // user closed the share sheet
-    }
-  }
-  const a = document.createElement("a");        // desktop / fallback
+/* ---------- SAVE (download) ---------- */
+function download() {
+  const a = document.createElement("a");
   a.download = `pyphotobooth-${Date.now()}.png`;
   a.href = $("strip").toDataURL("image/png");
   a.click();
+}
+
+/* ---------- SHARE (AirDrop, Save Image, Messages...) ---------- */
+const canShareFiles = !!navigator.canShare?.({
+  files: [new File([""], "test.png", { type: "image/png" })],
+});
+$("shareBtn").hidden = !canShareFiles;   // hide where the browser has no share sheet
+
+async function share() {
+  if (!stripFile) return;   // strip still being prepared
+  try {
+    await navigator.share({ files: [stripFile], title: "PyPhotobooth" });
+  } catch (err) {
+    if (err.name !== "AbortError") download();   // share failed: fall back to download
+  }
 }
 
 /* ---------- QUIT ---------- */
@@ -141,7 +147,8 @@ $("startBtn").onclick = startSession;
 $("dateBtn").onclick = (e) => { opts.date = !opts.date; e.currentTarget.classList.toggle("on"); drawStrip(); };
 $("bwBtn").onclick = (e) => { opts.bw = !opts.bw; e.currentTarget.classList.toggle("on"); drawStrip(); };
 $("caption").oninput = (e) => { opts.text = e.target.value; drawStrip(); };
-$("saveBtn").onclick = save;
+$("saveBtn").onclick = download;
+$("shareBtn").onclick = share;
 $("quitBtn").onclick = quit;
 
 document.addEventListener("keydown", (e) => {
