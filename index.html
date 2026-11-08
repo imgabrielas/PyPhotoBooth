@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PyPhotobooth</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- 1. START -->
+  <section id="start" class="screen active">
+    <div class="art booth">
+      <img src="assets/booth.png" alt="Hand-drawn photo booth">
+      <button id="startBtn" class="hotspot start-hotspot" aria-label="Start"></button>
+    </div>
+    <p class="hint">Click START or press SPACE to begin</p>
+    <p class="hint-left">Press Q or ESC to quit</p>
+  </section>
+
+  <!-- 2. CAPTURE -->
+  <section id="capture" class="screen">
+    <div class="capture-layout">
+      <div class="camera">
+        <video id="video" autoplay playsinline muted></video>
+        <div class="guide"></div>
+        <p id="countdown"></p>
+        <div id="flash"></div>
+      </div>
+      <div class="slots">
+        <div class="slot" data-i="0">1</div>
+        <div class="slot" data-i="1">2</div>
+        <div class="slot" data-i="2">3</div>
+      </div>
+    </div>
+    <p class="hint-left">Press Q to quit</p>
+  </section>
+
+  <!-- 3. PICK-UP -->
+  <section id="pickup" class="screen">
+    <div class="pickup-layout">
+      <div class="art pickup">
+        <img src="assets/pickup.png" alt="Picture pick-up box">
+        <canvas id="strip" class="strip-hotspot"></canvas>
+      </div>
+      <div class="controls">
+        <button id="dateBtn" class="toggle on">ADD DATE</button>
+        <input id="caption" maxlength="20" placeholder="Your text" aria-label="Caption">
+        <button id="bwBtn" class="toggle on">B/W</button>
+        <button id="saveBtn">SAVE</button>
+        <button id="quitBtn">Quit</button>
+      </div>
+    </div>
+  </section>
+
+  <canvas id="grab" hidden></canvas>
+  <script src="app.js"></script>
+</body>
+</html>

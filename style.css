@@ -1,0 +1,183 @@
+:root {
+  --accent: #FDB86A;
+  --accent-hover: #F5A54A;
+  --ink: #1A1A2E;
+  --muted: #5c5c5c;
+  --bg: #FAFAF8;
+}
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+/* ---------- SCREENS ---------- */
+.screen {
+  display: none;
+  min-height: 100vh;
+  padding: 24px 24px 48px;
+  position: relative;
+}
+.screen.active {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.hint { margin: 0; font-size: 15px; color: var(--muted); }
+.hint-left {
+  position: absolute;
+  left: 24px;
+  bottom: 14px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ---------- IMAGE + OVERLAY PATTERN ---------- */
+.art { position: relative; }
+.art img { display: block; user-select: none; -webkit-user-drag: none; }
+
+.hotspot {
+  position: absolute;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+.hotspot:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+/* ---------- START ---------- */
+.art.booth { height: min(560px, calc(100vh - 140px)); }
+.art.booth img { height: 100%; width: auto; }
+
+.start-hotspot { left: 52.7%; top: 42.8%; width: 21.4%; height: 6.4%; }
+.start-hotspot:hover { outline: 2px solid var(--accent-hover); outline-offset: 3px; }
+
+/* ---------- CAPTURE ---------- */
+.capture-layout {
+  display: grid;
+  grid-template-columns: 3fr 1fr;
+  gap: 24px;
+  align-items: start;
+  width: min(1200px, 100%, calc((100vh - 100px) * 2.3));
+}
+
+.camera {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  overflow: hidden;
+}
+.camera video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+
+.guide {
+  position: absolute;
+  inset: 10% 6% 5%;
+  border: 2px solid var(--accent);
+  pointer-events: none;
+}
+
+#countdown {
+  position: absolute;
+  top: 2%;
+  left: 6%;
+  margin: 0;
+  color: var(--accent);
+  font-size: clamp(16px, 2vw, 24px);
+  font-weight: 600;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .4);
+}
+
+#flash {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .15s;
+}
+#flash.on { opacity: .9; }
+
+.slots { display: flex; flex-direction: column; gap: 12px; }
+.slot {
+  aspect-ratio: 16 / 9;
+  border: 1.5px solid #8a8a8a;
+  background: #fff center / cover no-repeat;
+  display: grid;
+  place-items: center;
+  font-size: clamp(20px, 2.5vw, 36px);
+  color: #6b6b6b;
+}
+
+/* ---------- PICK-UP ---------- */
+.pickup-layout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(32px, 8vw, 140px);
+  flex-wrap: wrap;
+}
+
+.art.pickup { height: min(820px, calc(100vh - 80px)); }
+.art.pickup img { height: 100%; width: auto; }
+
+.strip-hotspot {
+  position: absolute;
+  top: 14%;
+  height: 72%;
+  width: auto;
+  left: 50%;
+  transform: translateX(-50%);
+  box-shadow: 0 2px 8px rgba(26, 26, 46, .18);
+}
+
+.controls { display: flex; flex-direction: column; gap: 12px; width: 220px; }
+
+.controls button,
+.controls input {
+  min-height: 48px;
+  border: 1.5px solid var(--ink);
+  border-radius: 0;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  letter-spacing: .02em;
+}
+.controls button { cursor: pointer; transition: background .15s; }
+.controls button:hover { background: #f2f2f2; }
+.controls input { padding: 0 12px; text-align: center; }
+.controls button:focus-visible,
+.controls input:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+.toggle.on { background: var(--accent); }
+.controls .toggle.on:hover { background: var(--accent-hover); }
+
+/* ---------- PHONE ---------- */
+@media (max-width: 760px) {
+  .capture-layout { grid-template-columns: 1fr; width: 100%; }
+  .slots { flex-direction: row; }
+  .slot { flex: 1; }
+
+  .art.booth,
+  .art.pickup { height: auto; width: min(420px, 100%); }
+  .art.booth img,
+  .art.pickup img { width: 100%; height: auto; }
+
+  .controls { width: 100%; max-width: 320px; }
+}
